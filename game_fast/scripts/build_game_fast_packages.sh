@@ -71,6 +71,7 @@ else
   echo $LOCAL_CURRENT_WLD_PATH/share/aclocal "exists"
 fi
 
+
 # Build xserver
 echo "Building xserver............"
 cd $WORKING_DIR/xserver

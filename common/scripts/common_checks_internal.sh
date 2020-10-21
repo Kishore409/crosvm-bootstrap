@@ -17,16 +17,6 @@ COMPONENT_ONLY_BUILDS=${5:-"--all"}
 BUILD_CHANNEL=${6:-"--stable"} # Possible values: --dev, --stable, --all
 BUILD_TARGET=${7:-"--release"} # Possible values: --release, --debug, --all
 
-echo "common: Recieved Build Arguments...."
-echo "DIRECTORY_PREFIX:" $DIRECTORY_PREFIX
-echo "SOURCE_PWD:" $SOURCE_PWD
-echo "COMPONENT_TARGET:" $COMPONENT_TARGET
-echo "BUILD_TYPE:" $BUILD_TYPE
-echo "COMPONENT_ONLY_BUILDS:" $COMPONENT_ONLY_BUILDS
-echo "BUILD_CHANNEL:" $BUILD_CHANNEL
-echo "BUILD_TARGET:" $BUILD_TARGET
-echo "-------------------------------------"
-
   if [ $COMPONENT_TARGET != "--none" ]  && [ $COMPONENT_TARGET != "--rebuild-all" ] && [ $COMPONENT_TARGET != "--rootfs" ] && [ $COMPONENT_TARGET != "--common-libraries" ] && [ $COMPONENT_TARGET != "--game-fast" ] && [ $COMPONENT_TARGET != "--host" ] && [ $COMPONENT_TARGET != "--kernel" ]; then
     echo "Invalid COMPONENT_TARGET. Please check build_options.txt file for supported combinations."
     exit 1

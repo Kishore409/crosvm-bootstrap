@@ -18,7 +18,7 @@ BUILD_CHANNEL=${4:-"--stable"} # Possible values: --dev, --stable, --all
 BUILD_TARGET=${5:-"--release"} # Possible values: --release, --debug, --all
 
 BASE_DIR=$PWD
-LOCAL_REGENERATE=""
+LOCAL_REGENERATE=$COMPONENT_TARGET
 
 # Ensure build directory is setup correctly.
 if [ $COMPONENT_TARGET == "--rebuild-all" ] ; then
@@ -80,7 +80,7 @@ if [[ "$COMPONENT_TARGET" == "--host" ]] || [[ "$COMPONENT_TARGET" == "--rebuild
   cp -rf $BASE_DIR/host/scripts/*.* $BASE_DIR/build/scripts/host
 
   # Create Base image. This will be used for Host and cloning source code.
-  if bash host/build_host_internal.sh $BASE_DIR $COMPONENT_TARGET $BUILD_TYPE $COMPONENT_ONLY_BUILDS $BUILD_CHANNEL $BUILD_TARGET; then
+  if bash host/build_host_internal.sh $BASE_DIR $LOCAL_REGENERATE $BUILD_TYPE $COMPONENT_ONLY_BUILDS $BUILD_CHANNEL $BUILD_TARGET; then
     echo “Built host rootfs.”
       echo "Preparing to create docker image...."
   cd $BASE_DIR/build/images
@@ -124,11 +124,11 @@ if [[ "$COMPONENT_TARGET" == "--game-fast" ]] || [[ "$COMPONENT_TARGET" == "--re
   cp -rf $BASE_DIR/game_fast/scripts/*.* $BASE_DIR/build/scripts/game_fast
 
   # Create Base image. This will be used for Host and cloning source code.
-  if bash game_fast/build_game_fast.sh $BASE_DIR $COMPONENT_TARGET $BUILD_TYPE $COMPONENT_ONLY_BUILDS $BUILD_CHANNEL $BUILD_TARGET; then
+  if bash game_fast/build_game_fast.sh $BASE_DIR $LOCAL_REGENERATE $BUILD_TYPE $COMPONENT_ONLY_BUILDS $BUILD_CHANNEL $BUILD_TARGET; then
     echo “Built Game Fast.”
     UPDATE_CONTAINER='--true'
   else
-    echo “Failed to build guest rootfs. exit status: $?”
+    echo “Failed to build Game Fast Container. exit status: $?”
     exit 1
   fi
 fi

@@ -21,6 +21,7 @@ SOURCE_PWD=$BASE_PWD/source
 LOCAL_BUILD_TYPE=$BUILD_TYPE
 LOG_DIR=$BASE_PWD/build/log/$COMPONENT_TARGET
 SCRIPTS_DIR=$LOCAL_PWD/scripts
+LOCAL_USER=test
 
 # Rootfs Names
 LOCAL_ROOTFS_BASE=rootfs_base
@@ -87,12 +88,14 @@ sudo mount -o bind /dev/shm $LOCAL_ROOTFS_MOUNT_DIR/dev/shm
 sudo mount -o bind /dev/pts $LOCAL_ROOTFS_MOUNT_DIR/dev/pts
 
 sudo mkdir -p $LOCAL_ROOTFS_MOUNT_DIR/scripts/$COMPONENT_TARGET
+sudo mkdir -p $LOCAL_ROOTFS_MOUNT_DIR/scripts/rootfs
 sudo cp $LOCAL_PWD/scripts/$COMPONENT_TARGET/*.sh $LOCAL_ROOTFS_MOUNT_DIR/scripts/$COMPONENT_TARGET/
+sudo cp $BASE_PWD/rootfs/*.sh $LOCAL_ROOTFS_MOUNT_DIR/scripts/rootfs/
+
+sudo chroot $LOCAL_ROOTFS_MOUNT_DIR/ /bin/bash /scripts/rootfs/basic_setup.sh
 
 echo "Installing needed system packages for host and vm"
-sudo chroot $LOCAL_ROOTFS_MOUNT_DIR/ /bin/bash /scripts/$COMPONENT_TARGET/system_packages_internal.sh
-echo "Configuring default user"
-sudo chroot $LOCAL_ROOTFS_MOUNT_DIR/ /bin/bash /scripts/$COMPONENT_TARGET/default_user.sh
+sudo chroot $LOCAL_ROOTFS_MOUNT_DIR/ /bin/bash -c "su - $LOCAL_USER -c /scripts/$COMPONENT_TARGET/system_packages_internal.sh"
 
 sudo cp -rvf $LOCAL_PWD/config/default-config/common/* $LOCAL_ROOTFS_MOUNT_DIR/
 
