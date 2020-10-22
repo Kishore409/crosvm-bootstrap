@@ -157,8 +157,7 @@ install_package libxss1
 install_package xterm
 install_package libexpat1-dev
 install_package libcairo2
-install_package libcairo2-dev
-#install_package libigc-dev 
+install_package libcairo2-dev 
 install_package libxcb-composite0-dev
 install_package libxtst-dev
 install_package libxfont-dev

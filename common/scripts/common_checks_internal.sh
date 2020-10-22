@@ -22,8 +22,8 @@ if [[ "$COMPONENT_TARGET" != "common-libraries" ]] && [[ "$COMPONENT_TARGET" != 
   exit 1
 fi
 
-if [[ "$BUILD_TYPE" != "--clean" ]] && [[ "$BUILD_TYPE" != "--incremental" ]] && [[ "$BUILD_TYPE" != "--really-clean" ]]; then
-  echo "Invalid Build Type. Valid Values:--clean, --incremental, --really-clean"
+if [[ "$BUILD_TYPE" != "--clean" ]] && [[ "$BUILD_TYPE" != "--incremental" ]]; then
+  echo "Invalid Build Type. Valid Values:--clean, --incremental"
 fi
 
 if [[ "$COMPONENT_ONLY_BUILDS" != "--x11" ]] && [[ "$COMPONENT_ONLY_BUILDS" != "--wayland" ]]  && [[ "$COMPONENT_ONLY_BUILDS" != "--drivers" ]] && [[ "$COMPONENT_ONLY_BUILDS" != "--all" ]]; then

@@ -12,6 +12,11 @@ set -o pipefail
 
 echo "Checking if 32 bit and 64 bit architecture is supported ..."
 
+sudo apt-get install -y software-properties-common
+sudo add-apt-repository -y ppa:intel-opencl/intel-opencl
+
+sudo apt update
+
 if [ "x$(dpkg --print-foreign-architectures)" != "xi386" ]; then
   echo "Failed to add 32 bit architecture."
   exit 2
@@ -44,7 +49,6 @@ else
 fi
 }
 
-sudo apt update
 sudo ldconfig
 sudo ldconfig -p
 
@@ -65,6 +69,7 @@ install_package libqt5waylandcompositor5
 install_package qtwayland5
 #install_package gnome-session-wayland
 install_package qtcreator
+install_package libigc-dev
 
 sudo ldconfig
 sudo ldconfig -p

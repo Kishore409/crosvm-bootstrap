@@ -183,13 +183,13 @@ if [ $BUILD_ARCH != "i386" ]; then
   
   # FIXME: ADD IGC Build.
   # Build Neo
-  #echo "Building Neo............"
-  #cd $WORKING_DIR/compute/neo
-  #mesonclean_asneeded
-  #mkdir -p $LOCAL_MESON_BUILD_DIR
-  #cmake -S . -B $LOCAL_MESON_BUILD_DIR -DCMAKE_INSTALL_PREFIX=$LOCAL_CURRENT_WLD_PATH -DCMAKE_BUILD_TYPE=Release -DSKIP_UNIT_TESTS=1
-  #cd $LOCAL_MESON_BUILD_DIR
-  #echo "cmake config done, starting make"
-  #make -j`nproc`
-  #make install
+  echo "Building Neo............"
+  cd $WORKING_DIR/compute/neo
+  mesonclean_asneeded
+  mkdir -p $LOCAL_MESON_BUILD_DIR
+  cmake -S . -B $LOCAL_MESON_BUILD_DIR -DCMAKE_INSTALL_PREFIX=$LOCAL_CURRENT_WLD_PATH -DCMAKE_BUILD_TYPE=Release -DSKIP_UNIT_TESTS=1
+  cd $LOCAL_MESON_BUILD_DIR
+  echo "cmake config done, starting make"
+  make -j`nproc`
+  make install
 fi
