@@ -24,7 +24,7 @@ BUILD_ARCH=${4}
 ##main()
 ###############################################################################
 
-if [[ "$BUILD_TYPE" != "--clean" ]] && [[ "$BUILD_TYPE" != "--incremental" ]]; then
+if [[ "$BUILD_TYPE" != "--clean" ]] && [[ "$BUILD_TYPE" != "--update" ]]; then
   echo "Invalid Build Type. Valid Values:--clean, --incremental Recieved:" $BUILD_TYPE
   exit 1
 fi

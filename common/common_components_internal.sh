@@ -16,28 +16,28 @@ EXIT_CODE=0
 ######Globals ####################################################
 
 BASE_PWD=${1}
-COMPONENT_TARGET=${2}
-BUILD_TYPE=${3:-"--clean"} # Possible values: --clean, --incremental --really-clean
-COMPONENT_ONLY_BUILDS=${4:-"--all"}
+BUILD_TYPE=${2:-"--none"} # Possible values: --all/clean/update
+COMPONENT_TARGET=${3}
+SUB_COMPONENT_TARGET=${4:-"--all"} #Possible values:  --all/x11/wayland/drivers/vm/compositor
 BUILD_CHANNEL=${5:-"--stable"} # Possible values: --dev, --stable, --all
 BUILD_TARGET=${6:-"--release"} # Possible values: --release, --debug, --all
 
 LOCAL_PWD=$BASE_PWD/build
 SOURCE_PWD=$BASE_PWD/source
 LOCAL_BUILD_TYPE=$BUILD_TYPE
-LOCAL_COMPONENT_ONLY_BUILDS=$COMPONENT_ONLY_BUILDS
-LOG_DIR=$BASE_PWD/build/log/$COMPONENT_TARGET
+LOCAL_COMPONENT_ONLY_BUILDS=$SUB_COMPONENT_TARGET
+LOG_DIR=$BASE_PWD/build/log/${COMPONENT_TARGET:2}
 SCRIPTS_DIR=$LOCAL_PWD/scripts
 
-if [[ "$LOCAL_BUILD_TYPE" == "--really-clean" ]]; then
+if [[ "$LOCAL_BUILD_TYPE" == "--all" ]]; then
 	LOCAL_BUILD_TYPE="--clean"
 fi
 
 mkdir -p $LOG_DIR
 
-source $SCRIPTS_DIR/common/error_handler_internal.sh $LOG_DIR $COMPONENT_TARGET-component-build.log $LOCAL_PWD $COMPONENT_TARGET
+source $SCRIPTS_DIR/common/error_handler_internal.sh $LOG_DIR ${COMPONENT_TARGET:2}-component-build.log $LOCAL_PWD $COMPONENT_TARGET
 
-if bash common/scripts/common_checks_internal.sh $LOCAL_PWD $SOURCE_PWD $COMPONENT_TARGET $BUILD_TYPE $COMPONENT_ONLY_BUILDS $BUILD_CHANNEL $BUILD_TARGET; then
+if bash common/scripts/common_checks_internal.sh $LOCAL_PWD $SOURCE_PWD $COMPONENT_TARGET $BUILD_TYPE $SUB_COMPONENT_TARGET $BUILD_CHANNEL $BUILD_TARGET; then
 	echo “Preparing to build dependencies for $COMPONENT_TARGET...”
 else
 	echo “Failed to find needed dependencies, exit status: $?”
@@ -75,7 +75,32 @@ building_component() {
 ###############################################################################
 ##main()
 ###############################################################################
-if [[ "$COMPONENT_TARGET" == "guest" ]]; then
+
+if [[ "$COMPONENT_TARGET" == "--kernel" ]]; then
+	if bash common/scripts/build_kernel.sh $BASE_PWD $BUILD_TYPE $BUILD_CHANNEL $BUILD_TARGET; then
+		echo “Succesfully compiled kernel”
+		exit 0
+	else
+		echo “Failed to compile kernel: $?”
+		exit 1
+	fi
+fi
+
+
+if [[ "$COMPONENT_TARGET" != "--kernel" ]] &&  [[ "$BUILD_TYPE" != "--update" ]] && [[ "$SUB_COMPONENT_TARGET" == "--all" ]]; then
+        if bash common/rootfs/create_rootfs.sh $BASE_PWD $COMPONENT_TARGET $BUILD_TYPE ; then
+                echo “Built rootfs with default usersetup.”
+		if [ "$COMPONENT_TARGET" == "--container" ]; then
+			echo "Successfully built Container Image"
+			exit 0
+		fi
+        else
+                echo “Failed to built rootfs with default usersetup, exit status: $?”
+                exit 1
+        fi
+fi
+
+if [[ "$COMPONENT_TARGET" == "--guest" ]]; then
 	cd $LOCAL_PWD/images/
 else
 	cd $LOCAL_PWD/containers/
@@ -84,19 +109,22 @@ fi
 setup_build_env || EXIT_CODE=$?
 
 echo "Building components."
-if [[ "$LOCAL_COMPONENT_ONLY_BUILDS" == "--all" ]] || [[ "$LOCAL_COMPONENT_ONLY_BUILDS" == "--x11" ]]; then
-	building_component "--x11"
+if [[ "$SUB_COMPONENT_TARGET" == "--all" ]] || [[ "$SUB_COMPONENT_TARGET" == "--x11" ]]; then
+	LOCAL_COMPONENT_ONLY_BUILDS="--x11"
+	building_component $LOCAL_COMPONENT_ONLY_BUILDS
 fi
 
-if [[ "$LOCAL_COMPONENT_ONLY_BUILDS" == "--all" ]] || [[ "$LOCAL_COMPONENT_ONLY_BUILDS" == "--wayland" ]]; then
-	building_component "--wayland"
+if [[ "$SUB_COMPONENT_TARGET" == "--all" ]] || [[ "$SUB_COMPONENT_TARGET" == "--wayland" ]]; then
+	LOCAL_COMPONENT_ONLY_BUILDS="--wayland"
+	building_component $LOCAL_COMPONENT_ONLY_BUILDS
 fi
 
-if [[ "$LOCAL_COMPONENT_ONLY_BUILDS" == "--all" ]] || [[ "$LOCAL_COMPONENT_ONLY_BUILDS" == "--drivers" ]]; then
-	building_component "--drivers"
+if [[ "$SUB_COMPONENT_TARGET" == "--all" ]] || [[ "$SUB_COMPONENT_TARGET" == "--drivers" ]]; then
+	LOCAL_COMPONENT_ONLY_BUILDS="--drivers"
+	building_component $LOCAL_COMPONENT_ONLY_BUILDS
 fi
 
-if [[ "$COMPONENT_TARGET" == "guest" ]]; then
+if [[ "$COMPONENT_TARGET" == "--guest" ]]; then
 	if sudo chroot $ROOTFS_COMMON_MOUNT_DIR/ /bin/bash /scripts/common/build_demos.sh $BUILD_TARGET $LOCAL_BUILD_TYPE $BUILD_CHANNEL; then
 		echo "Build Demos.."
 	else
@@ -112,12 +140,15 @@ if [[ "$COMPONENT_TARGET" == "guest" ]]; then
 	fi
 fi
 
-if [[ "$COMPONENT_TARGET" == "host" ]]; then
-	if sudo chroot $ROOTFS_COMMON_MOUNT_DIR/ /bin/bash /scripts/common/build_host_packages.sh $BUILD_TARGET $LOCAL_BUILD_TYPE $BUILD_CHANNEL; then
-        	echo "Built host packages.."
-	else
-		echo "Failed to build host packages.."
-    		exit 1
+if [[ "$COMPONENT_TARGET" == "--host" ]]; then
+	if [[ "$SUB_COMPONENT_TARGET" == "--all" ]] || [[ "$SUB_COMPONENT_TARGET" == "--vm" ]]; then
+		LOCAL_COMPONENT_ONLY_BUILDS="--vm"
+		if sudo chroot $ROOTFS_COMMON_MOUNT_DIR/ /bin/bash /scripts/common/build_host_packages.sh $BUILD_TARGET $LOCAL_BUILD_TYPE $BUILD_CHANNEL; then
+			echo "Built host packages.."
+		else
+			echo "Failed to build host packages.."
+			exit 1
+		fi
 	fi
 fi
 

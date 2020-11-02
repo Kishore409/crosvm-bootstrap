@@ -16,7 +16,7 @@ EXIT_CODE=0
 ######Globals ####################################################
 
 BUILD_TARGET=${1:-"--release"}
-BUILD_TYPE=${2:-"--incremental"}
+BUILD_TYPE=${2:-"--update"}
 BUILD_CHANNEL=${3:-"--stable"}
 BUILD_ARCH=${4:-"x86_64"}
 LOCAL_BUILD_TARGET=release

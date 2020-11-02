@@ -27,17 +27,18 @@ BUILD_TARGET=${7:-"--release"} # Possible values: --release, --debug, --all
 ##main()
 ###############################################################################
 
-if [[ "$COMPONENT_TARGET" != "host" ]] && [[ "$COMPONENT_TARGET" != "guest" ]]; then
+if [[ "$COMPONENT_TARGET" != "--host" ]] && [[ "$COMPONENT_TARGET" != "--guest" ]] &&\
+	[[ "$COMPONENT_TARGET" != "--container" ]] && [[ "$COMPONENT_TARGET" != "--kernel" ]]; then
   echo "Invalid COMPONENT_TARGET. Please check build_options.txt file for supported combinations."
   exit 1
 fi
 
-if [[ "$BUILD_TYPE" != "--clean" ]] && [[ "$BUILD_TYPE" != "--incremental" ]] && [[ "$BUILD_TYPE" != "--really-clean" ]]; then
+if [[ "$BUILD_TYPE" != "--all" ]] && [[ "$BUILD_TYPE" != "--clean" ]] && [[ "$BUILD_TYPE" != "--update" ]]; then
   echo "Invalid Build Type. Valid Values:--clean, --incremental, --really-clean"
   exit 1
 fi
 
-if [[ "$COMPONENT_ONLY_BUILDS" != "--x11" ]] && [[ "$COMPONENT_ONLY_BUILDS" != "--wayland" ]]  && [[ "$COMPONENT_ONLY_BUILDS" != "--drivers" ]] && [[ "$COMPONENT_ONLY_BUILDS" != "--all" ]]; then
+if [[ "$COMPONENT_ONLY_BUILDS" != "--x11" ]] && [[ "$COMPONENT_ONLY_BUILDS" != "--wayland" ]]  && [[ "$COMPONENT_ONLY_BUILDS" != "--drivers" ]] && [[ "$COMPONENT_ONLY_BUILDS" != "--all" ]] && [[ "$COMPONENT_ONLY_BUILDS" != "--vm" ]] && [[ "$COMPONENT_ONLY_BUILDS" != "--compostior" ]]; then
    echo "Invalid value for COMPONENT_ONLY_BUILDS: $COMPONENT_ONLY_BUILDS. Please check build_options.txt file for supported combinations."
    exit 1
 fi

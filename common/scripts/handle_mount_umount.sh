@@ -33,13 +33,13 @@ echo "--------------------------"
 
 MU_LOCAL_ROOTFS_COMMON=rootfs_host
 
-if [[ "$MU_TARGET_COMPONENT" == "game-fast" ]]; then
+if [[ "$MU_TARGET_COMPONENT" == "--container" ]]; then
 	MU_LOCAL_ROOTFS_COMMON=rootfs_game_fast
 fi
 
 MU_LOCAL_ROOTFS_COMMON_MOUNT_DIR=$MU_MOUNT_DIR/containers/$MU_LOCAL_ROOTFS_COMMON-temp
 
-if [[ "$MU_TARGET_COMPONENT" == "guest" ]]; then
+if [[ "$MU_TARGET_COMPONENT" == "--guest" ]]; then
 	MU_LOCAL_ROOTFS_COMMON=rootfs_guest
 	MU_LOCAL_ROOTFS_COMMON_MOUNT_DIR=$MU_MOUNT_DIR/images/$MU_LOCAL_ROOTFS_COMMON-temp
 fi
@@ -54,7 +54,7 @@ function cleanup_mount ()
 {
 	if [[ "$MU_OPERATION" == "unmount" ]]; then
 		local MU_CURRENT_DIR=$PWD
-		if [[ "$MU_TARGET_COMPONENT" == "guest" ]]; then
+		if [[ "$MU_TARGET_COMPONENT" == "--guest" ]]; then
 			cd $MU_MOUNT_DIR/images/
     		else
       			cd $MU_MOUNT_DIR/containers/
@@ -122,7 +122,7 @@ function cleanup_mount ()
 setup_mount() {
 	if [[ "$MU_OPERATION" == "mount" ]]; then
 		local MU_CURRENT_DIR=$PWD
-		if [[ "$MU_TARGET_COMPONENT" == "guest" ]]; then
+		if [[ "$MU_TARGET_COMPONENT" == "--guest" ]]; then
 			cd $MU_MOUNT_DIR/images/
     		else
       			cd $MU_MOUNT_DIR/containers/
@@ -150,7 +150,7 @@ setup_mount() {
 		sudo mkdir -p $MU_LOCAL_ROOTFS_COMMON_MOUNT_DIR/build
 		sudo mkdir -p $MU_LOCAL_ROOTFS_COMMON_MOUNT_DIR/log/common
 		sudo mount --rbind $MU_SOURCE_PWD $MU_LOCAL_ROOTFS_COMMON_MOUNT_DIR/build
-		sudo mount --rbind $MU_MOUNT_DIR/log/$COMPONENT_TARGET $MU_LOCAL_ROOTFS_COMMON_MOUNT_DIR/log/common
+		sudo mount --rbind $MU_MOUNT_DIR/log/${COMPONENT_TARGET:2} $MU_LOCAL_ROOTFS_COMMON_MOUNT_DIR/log/common
 	
 		if [[ "$MU_IGNORE_SYSTEM_MOUNT" != "--true" ]]; then
 			sudo mkdir -p $MU_LOCAL_ROOTFS_COMMON_MOUNT_DIR/proc

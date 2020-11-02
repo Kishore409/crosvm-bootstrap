@@ -1,203 +1,255 @@
 #! /bin/bash
 
-# build-rootfs-builder-container.sh
-# Set up build environment for docker container that generates Debian rootfs
-# then calls docker build.
-
-# exit on any script line that fails
+############ exit on any script line that fails###############################
 set -o errexit
-# bail on any unitialized variable reads
+############ bail on any unitialized variable reads###########################
 set -o nounset
-# bail on failing commands before last pipe
+############ bail on failing commands before last pipe########################
 set -o pipefail
 
-COMPONENT_TARGET=${1:-"--none"}
-BUILD_TYPE=${2:-"--clean"} # Possible values: --clean, --incremental --really-clean
-COMPONENT_ONLY_BUILDS=${3:-"--all"}
-BUILD_CHANNEL=${4:-"--stable"} # Possible values: --dev, --stable, --all
-BUILD_TARGET=${5:-"--release"} # Possible values: --release, --debug, --all
 
+###################GLOBAL's####################################################
 BASE_DIR=$PWD
-LOCAL_REGENERATE=$COMPONENT_TARGET
+#####BUILD_TYPE --all/--clean/--update
+BUILD_TYPE="--none"
+#####COMPONENT_TARGET --host/--guest/--kernel/--none
+COMPONENT_TARGET="--none"
+#####SUB COMPONENT TARGET########
+SUB_COMPONENT_TARGET="--all"
+#####BUILD_CHANNEL --dev/--stable
+BUILD_CHANNEL="--stable"
+#####BUILD_TARGET --release/--debug
+BUILD_TARGET="--release"
 
-# Ensure build directory is setup correctly.
-if [ $COMPONENT_TARGET == "--rebuild-all" ] ; then
-  rm -rf build/
+###########Globals to be shared with other scripts#############################
+export BUILD_OUTPUT_1="$BASE_DIR/images/rootfs_host.ext4"
+export BUILD_OUTPUT_1_LOCK="$BASE_DIR/images/rootfs_host.lock"
+export BUILD_OUTPUT_2="$BASE_DIR/containers/rootfs_guest.ext4"
+#export BUILD_OUTPUT_2_LOCK="$BASEDIR/containers/rootfs_guest.lock"
+export BUILD_OUTPUT_3="$BASE_DIR/images/vmlinux"
+export BUILD_OUTPUT_3_LOCK="$BASE_DIR/images/vmlinux.lock"
+
+###############################################################################
+# Help
+###############################################################################
+Help()
+{
+	#Display Help
+	echo "Usage: build.sh [-b|c|s] [params]"
+	echo "-b   --all|clean|update"
+	echo "-c   --host|guest|container|kernel"
+	echo "-c   --host    		-s   --x11/wayland/drivers/vm"
+	echo "-c   --guest   		-s   --x11/wayland/drivers/compositor"
+	exit 1
+}
+
+###############################################################################
+# Parseoptarg()
+###############################################################################
+Parseoptarg()
+{
+
+	case "$1" in
+		'--host' )
+				echo "Valid argument-2 $1"
+				if [ "$2" == "--x11" ] || [ "$2" == "--wayland" ] || [ "$2" == "--drivers" ]\
+					|| [ "$2" == "--vm" ] || [ "$2" == "--all" ]; then
+					echo "Valid argument-3 passed $2"
+				else
+					echo "Invalid argument-3 passed $2"
+				        Help
+				fi
+				;;
+		'--guest' )
+				echo "Valid argument-2 $1"
+				if [ "$2" == "--x11" ] || [ "$2" == "--wayland" ] || [ "$2" == "--drivers" ]\
+					|| [ "$2" == "--compositor" ] || [ "$2" == "--all" ]; then
+					echo "Valid argument-3 passed $2"
+				else
+					echo "Invalid argument-3 passed $2"
+					Help
+				fi
+				;;
+		'--container' )
+				echo "Valid argument-2 $1"
+				if [ "$2" == "--all" ]; then
+					echo "Valid argument-3 passed $2"
+				else
+					echo "Invalid argument-3 passed $2"
+					Help
+				fi
+				;;
+		'--kernel' )
+				echo "Valid argument-2 $1"
+				if [ "$2" == "--all" ]; then
+					echo "Valid argument-3 passed $2"
+				else
+					echo "Invalid argument-3 passed $2"
+					Help
+				fi
+				;;
+		*)
+				echo "Invalid argument-2 passed $1"
+				Help
+				;;
+	esac
+}
+
+###############################################################################
+# Parseoptions
+###############################################################################
+Parseoptions()
+{
+	case "$1" in
+		'--all' )
+				echo "Valid argument-1 passed $1"
+				;;
+		'--clean' )
+				echo "Valid argument-1 passed $1"
+				;;
+		'--update' )
+				echo "Valid argument-1 passed $1"
+				;;
+		'--none' )
+				Parseoptarg $2 $3
+				BUILD_TYPE="--clean"
+				;;
+		*)
+				echo "Invalid argument-1 passed $1"
+				Help
+				;;
+	esac
+}
+
+###############################################################################
+# Setup build env
+###############################################################################
+Envsetup()
+{
+	local buildtype="$1"
+	local component="$2"
+	local basedir="$3"
+
+	if [ $buildtype == "--clean" ] && [ $component == "--none" ]; then
+		rm -rf $basedir/build/
+		exit 1
+	fi
+
+	if [ $buildtype == "--all" ] ; then
+		rm -rf $basedir/build/
+	fi
+
+	if [ ! -e $basedir/build ]; then
+		mkdir $basedir/build
+	fi
+
+	mkdir -p $basedir/build/containers
+	mkdir -p $basedir/build/config
+	mkdir -p $basedir/build/scripts/common
+
+	cp -rf $basedir/common/rootfs  $basedir/build
+	cp -rf $basedir/default-config $basedir/build/config
+	cp -rf $basedir/common/scripts/*.* $basedir/build/scripts/common
+}
+
+
+###############################################################################
+# Main
+###############################################################################
+
+if [ $# -eq 0 ] ; then
+        Help
 fi
 
-if [ ! -e $BASE_DIR/build ]; then
-  mkdir $BASE_DIR/build
+
+while getopts ":b:c:s:" option; do
+   case $option in
+	 b )
+		BUILD_TYPE=$OPTARG;;
+	 c )
+		COMPONENT_TARGET=$OPTARG;;
+	 s )
+		SUB_COMPONENT_TARGET=$OPTARG;;
+	 * )
+		Help;;
+   esac
+done
+
+########Parse options ######################################################
+Parseoptions $BUILD_TYPE $COMPONENT_TARGET $SUB_COMPONENT_TARGET
+
+#########Setup environment when BUILD_TYPE=--all/--clean#####################
+Envsetup $BUILD_TYPE $COMPONENT_TARGET $BASE_DIR
+
+##########################Build Host Image#####################################
+if [ "$BUILD_TYPE" != "--clean" ] ||  [ $COMPONENT_TARGET == "--host" ]; then
+	COMPONENT_TARGET="--host"
+
+	if [[ "$(docker images -q intel_host 2> /dev/null)" != "" ]]; then
+		docker rmi -f intel_host:latest
+	fi
+
+	if bash common/common_components_internal.sh $BASE_DIR $BUILD_TYPE $COMPONENT_TARGET $SUB_COMPONENT_TARGET $BUILD_CHANNEL $BUILD_TARGET; then
+		echo “Host Image: Operation $BUILD_TYPE/$COMPONENT_TARGET Success.”
+	else
+		echo “Failed to build Host Image, exit status: $?”
+		exit 1
+	fi
 fi
 
-if [[ -e $BASE_DIR/build/rootfs ]]; then
-  rm -rf $BASE_DIR/build/rootfs
+##########################Build Container Image#####################################
+if [ "$BUILD_TYPE" != "--clean" ] ||  [ $COMPONENT_TARGET == "--container" ]; then
+	COMPONENT_TARGET="--container"
+
+	if bash common/common_components_internal.sh $BASE_DIR $BUILD_TYPE $COMPONENT_TARGET $SUB_COMPONENT_TARGET $BUILD_CHANNEL $BUILD_TARGET; then
+		echo “Container Image: Operation $BUILD_TYPE/$COMPONENT_TARGET Success.”
+	else
+		echo “Failed to build Container Image, exit status: $?”
+		exit 1
+	fi
 fi
 
-if [ -e $BASE_DIR/build/config ]; then
-  rm -rf $BASE_DIR/build/config
+##########################Build Guest Image#########################################
+if [ "$BUILD_TYPE" != "--clean" ] ||  [ $COMPONENT_TARGET == "--guest" ]; then
+        COMPONENT_TARGET="--guest"
+
+        if bash common/common_components_internal.sh $BASE_DIR $BUILD_TYPE $COMPONENT_TARGET $SUB_COMPONENT_TARGET $BUILD_CHANNEL $BUILD_TARGET; then
+                echo “Guest Image: Operation $BUILD_TYPE/$COMPONENT_TARGET Success.”
+        else
+                echo “Failed to build Guest Image, exit status: $?”
+                exit 1
+        fi
 fi
 
-if [ ! -e $BASE_DIR/build/containers ]; then
-  mkdir $BASE_DIR/build/containers
+##########################Build Kernel Image#########################################
+if [ "$BUILD_TYPE" != "--clean" ] ||  [ $COMPONENT_TARGET == "--kernel" ]; then
+	COMPONENT_TARGET="--kernel"
+
+        if bash common/common_components_internal.sh $BASE_DIR $BUILD_TYPE $COMPONENT_TARGET $SUB_COMPONENT_TARGET $BUILD_CHANNEL $BUILD_TARGET; then
+                echo “Kernel Image: Operation $BUILD_TYPE/$COMPONENT_TARGET Success.”
+        else
+                echo “Failed to build Kernel Image, exit status: $?”
+                exit 1
+        fi
 fi
 
-mkdir -p $BASE_DIR/build/config
-cp -rf default-config $BASE_DIR/build/config
-
-cp -rf $BASE_DIR/rootfs $BASE_DIR/build/
-
-if [ -e $BASE_DIR/build/scripts/common ]; then
-  rm -rf $BASE_DIR/build/scripts/common
-fi
-
-mkdir -p $BASE_DIR/build/scripts/common
-cp -rf $BASE_DIR/common/scripts/*.* $BASE_DIR/build/scripts/common
-
-LOCAL_BUILD_HOST="false"
-if [[ "$COMPONENT_TARGET" == "--host" ]] && [[ "$BUILD_TYPE" == "--really-clean" ]]; then
-  LOCAL_BUILD_HOST="true"
-fi
-
-if [[ "$COMPONENT_TARGET" == "--host" ]] || [[ "$COMPONENT_TARGET" == "--rebuild-all" ]] || [[ "$LOCAL_BUILD_HOST" == "true" ]]; then
-  if [ -e $BASE_DIR/build/scripts/host ]; then
-    rm -rf $BASE_DIR/build/scripts/host
-  fi
-  
-  if [[ "$(docker images -q intel_host 2> /dev/null)" != "" ]]; then
-	docker rmi -f intel_host:latest
-  fi
-
-  if [ $COMPONENT_TARGET == "--rebuild-all" ] || [[ "$BUILD_TYPE" == "--really-clean" ]]; then
-    # Create Base image. This will be used for Host and cloning source code.
-    if bash rootfs/create_rootfs.sh $BASE_DIR 'host' '--really-clean'; then
-      echo “Built rootfs with default usersetup.”
-    else
-      echo “Failed to built rootfs with default usersetup, exit status: $?”
-      exit 1
-    fi
-  fi
-
-  if bash common/common_components_internal.sh $BASE_DIR 'host' $BUILD_TYPE $COMPONENT_ONLY_BUILDS $BUILD_CHANNEL $BUILD_TARGET; then
-    echo “Built all common libraries to be used by host and guest”
-    LOCAL_REGENERATE='--rebuild-all'
-  else
-    echo “Failed to build common libraries to be used by host and guest. exit status: $?”
-    exit 1
-  fi
-fi
-
-LOCAL_REGENERATE=$COMPONENT_TARGET
-cd $BASE_DIR/
-UPDATE_CONTAINER='--false'
-
-LOCAL_BUILD_GAME_FAST="false"
-if [[ "$COMPONENT_TARGET" == "--game-fast" ]] && [[ "$BUILD_TYPE" == "--really-clean" ]]; then
-  LOCAL_BUILD_GAME_FAST="true"
-fi
-
-if [[ "$COMPONENT_TARGET" == "--game-fast" ]] || [[ "$LOCAL_REGENERATE" == "--rebuild-all" ]] || [[ "$LOCAL_BUILD_GAME_FAST" == "true" ]] ||  [[ ! -e  "$BASE_DIR/build/containers/rootfs_game_fast.ext4" ]]; then
-  if [ -e $BASE_DIR/build/scripts/game_fast ]; then
-    rm -rf $BASE_DIR/build/scripts/game_fast
-  fi
-
-  LOCAL_BUILD_TYPE=$BUILD_TYPE
-
-  mkdir -p $BASE_DIR/build/scripts/game-fast
-  
-  # Create Base image. This will be used for Host and cloning source code.
-  if bash rootfs/create_rootfs.sh $BASE_DIR 'game-fast' '--really-clean'; then
-    echo “Built rootfs with default usersetup.”
-  else
-    echo “Failed to built rootfs with default usersetup, exit status: $?”
-    exit 1
-  fi
-fi
-
-LOCAL_BUILD_GUEST="false"
-if [[ "$COMPONENT_TARGET" == "--guest" ]] && [[ "$BUILD_TYPE" == "--really-clean" ]]; then
-  LOCAL_BUILD_GUEST="true"
-fi
-
-if [[ "$COMPONENT_TARGET" == "--guest" ]]; then
-  UPDATE_CONTAINER='--true'
-fi
-
-if [[ "$UPDATE_CONTAINER" == "--true" ]] || [[ "$COMPONENT_TARGET" == "--guest" ]] || [[ "$COMPONENT_TARGET" == "--rebuild-all" ]] || [[ "$LOCAL_REGENERATE" == "--rebuild-all" ]] || [[ "$LOCAL_BUILD_GUEST" == "true" ]]; then
-  if [ -e $BASE_DIR/build/scripts/guest ]; then
-    rm -rf $BASE_DIR/build/scripts/guest
-  fi
-
-  mkdir -p $BASE_DIR/build/scripts/guest
-  RECREATE_GUEST_ROOTFS=0
-  
-  if [[ "$BUILD_TYPE" == "--really-clean" ]] && [[ "$COMPONENT_TARGET" == "--guest" ]]; then
-    RECREATE_GUEST_ROOTFS=1
-  fi
-  
-  LOCAL_BUILD_TYPE=$BUILD_TYPE
-
-  if [[ "$COMPONENT_TARGET" == "--rebuild-all" ]] || [[ "$LOCAL_REGENERATE" == "--rebuild-all" ]] || [[ $RECREATE_GUEST_ROOTFS == "1" ]] || [[ ! -e $BASE_DIR/build/images/rootfs_guest.ext4 ]]; then
-    if bash rootfs/create_rootfs.sh $BASE_DIR 'guest' '--really-clean' '20000'; then
-      LOCAL_BUILD_TYPE="--clean"
-      echo “Built guest with default usersetup.”
-    else
-      echo “Failed to built rootfs with default usersetup, exit status: $?”
-      exit 1
-    fi
-  fi
-  
-  if bash common/common_components_internal.sh $BASE_DIR 'guest' $LOCAL_BUILD_TYPE $COMPONENT_ONLY_BUILDS $BUILD_CHANNEL $BUILD_TARGET; then
-    echo “Built all common libraries to be used by Guest.”
-  else
-    echo “Failed to build common libraries to be used by Guest. exit status: $?”
-    exit 1
-  fi  
-fi
-
-if [[ "$COMPONENT_TARGET" == "--kernel" ]] || [[ "$COMPONENT_TARGET" == "--rebuild-all" ]] ; then
-  echo "Preparing to build Kernel...."
-  LOCAL_BUILD_CHANNEL=stable
-  if [ $BUILD_CHANNEL == "--dev" ]; then
-    LOCAL_BUILD_CHANNEL=dev
-  fi
-
-  cd $BASE_DIR/source/$LOCAL_BUILD_CHANNEL/drivers/kernel/
-  if [ $BUILD_TYPE == "--clean" ]; then
-    make clean || true
-  fi
-
-  make x86_64_defconfig
-  make
-  if [ -f vmlinux ]; then
-    mkdir -p $BASE_DIR/build/images/
-    if [ -e $BASE_DIR/build/images/vmlinux ]; then
-      rm $BASE_DIR/build/images/vmlinux
-    fi
-
-    mv vmlinux $BASE_DIR/build/images/
-  fi
-fi
-
-if [ -e $BASE_DIR/build/launch ]; then
-  sudo rm -rf $BASE_DIR/build/launch
-fi
-
+#############################INSTALL BUILD IMAGES###################################
 if [[ -e "$BASE_DIR/build/containers/rootfs_host.ext4" ]] && [[ -e "$BASE_DIR/build/containers/rootfs_game_fast.ext4" ]] && [[ -e "$BASE_DIR/build/images/rootfs_guest.ext4" ]] && [[ -e "$BASE_DIR/build/images/vmlinux" ]]; then
-	mkdir -p $BASE_DIR/build/launch
-	mkdir -p $BASE_DIR/build/launch/images
-	mkdir -p $BASE_DIR/build/launch/docker/
-	mkdir -p $BASE_DIR/build/launch/shared/
-	mkdir -p $BASE_DIR/build/launch/shared/containers
-	mkdir -p $BASE_DIR/build/launch/shared/guest
-	mkdir -p $BASE_DIR/build/launch/shared/guest/igt
-	cd $BASE_DIR/build/launch
-	cp $BASE_DIR/launcher.sh .
-	cp -rpvf $BASE_DIR/launch .
-	cp $BASE_DIR/launch/docker/start.dockerfile $BASE_DIR/build/launch/docker/Dockerfile-start
-	cp $BASE_DIR/launch/docker/stop.dockerfile $BASE_DIR/build/launch/docker/Dockerfile-stop
-	cp -rpvf $BASE_DIR/tools/*.sh $BASE_DIR/build/launch/launch/scripts/
-	cp $BASE_DIR/build/containers/rootfs_host.ext4 images/
-	cp $BASE_DIR/build/containers/rootfs_game_fast.ext4 $BASE_DIR/build/launch/shared/containers/
-	cp $BASE_DIR/build/images/rootfs_guest.ext4 images/
-	cp $BASE_DIR/build/images/vmlinux images/
+        mkdir -p $BASE_DIR/build/launch
+        mkdir -p $BASE_DIR/build/launch/images
+        mkdir -p $BASE_DIR/build/launch/docker/
+        mkdir -p $BASE_DIR/build/launch/shared/
+        mkdir -p $BASE_DIR/build/launch/shared/containers
+        mkdir -p $BASE_DIR/build/launch/shared/guest
+        mkdir -p $BASE_DIR/build/launch/shared/guest/igt
+        cd $BASE_DIR/build/launch
+        cp $BASE_DIR/launcher.sh .
+        cp -rpvf $BASE_DIR/launch .
+        cp $BASE_DIR/launch/docker/start.dockerfile $BASE_DIR/build/launch/docker/Dockerfile-start
+        cp $BASE_DIR/launch/docker/stop.dockerfile $BASE_DIR/build/launch/docker/Dockerfile-stop
+        cp -rpvf $BASE_DIR/tools/*.sh $BASE_DIR/build/launch/launch/scripts/
+        cp $BASE_DIR/build/containers/rootfs_host.ext4 images/
+        cp $BASE_DIR/build/containers/rootfs_game_fast.ext4 $BASE_DIR/build/launch/shared/containers/
+        cp $BASE_DIR/build/images/rootfs_guest.ext4 images/
+        cp $BASE_DIR/build/images/vmlinux images/
 fi

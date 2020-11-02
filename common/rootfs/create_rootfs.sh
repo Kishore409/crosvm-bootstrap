@@ -14,19 +14,18 @@ set -o pipefail
 EXIT_CODE=0
 
 BASE_PWD=${1}
-COMPONENT_TARGET=${2:-"host"}
-BUILD_TYPE=${3:-"--clean"} # Possible values: --clean, --incremental --really-clean
+COMPONENT_TARGET=${2:-"--host"}
+BUILD_TYPE=${3:-"--clean"} # Possible values: --all/clean/update
 SIZE=${4:-"5000"}
 
 LOCAL_PWD=$BASE_PWD/build
 SOURCE_PWD=$BASE_PWD/source
 LOCAL_BUILD_TYPE=$BUILD_TYPE
-LOG_DIR=$BASE_PWD/build/log/$COMPONENT_TARGET
+LOG_DIR=$BASE_PWD/build/log/${COMPONENT_TARGET:2}
 SCRIPTS_DIR=$LOCAL_PWD/scripts
 LOCAL_USER=test
 
 mkdir -p $BASE_PWD/build/images
-mkdir -p $BASE_PWD/build/log/$COMPONENT_TARGET
 mkdir -p $LOG_DIR
 
 source $SCRIPTS_DIR/common/error_handler_internal.sh $LOG_DIR rootfs.log $LOCAL_PWD $COMPONENT_TARGET
@@ -72,19 +71,24 @@ generate_base_rootfs() {
 	echo "Generating rootfs...."
 	dd if=/dev/zero of=$ROOTFS_COMMON.ext4 bs=$SIZE count=1M
 	mkfs.ext4 $ROOTFS_COMMON.ext4
-	
+	echo "Gar check $PWD"
+	ls -la
+	echo "GAR--2=source $SCRIPTS_DIR/common/handle_mount_umount.sh 'mount' $LOCAL_PWD $COMPONENT_TARGET $SOURCE_PWD --true --true"
 	# No need for any system mounts as these will be over-riden when rootfs is installed in the next step.
 	source $SCRIPTS_DIR/common/handle_mount_umount.sh 'mount' $LOCAL_PWD $COMPONENT_TARGET $SOURCE_PWD --true --true
 
+	echo "GAR--3= sudo $LOCAL_PWD/rootfs/debootstrap --arch=amd64 --unpack-tarball=$LOCAL_PWD/rootfs/rootfs_container.tar focal $ROOTFS_COMMON_MOUNT_DIR/"
 	sudo $LOCAL_PWD/rootfs/debootstrap --arch=amd64 --unpack-tarball=$LOCAL_PWD/rootfs/rootfs_container.tar focal $ROOTFS_COMMON_MOUNT_DIR/
 	
 	# Remount to have valid /proc system mounts.
 	source $SCRIPTS_DIR/common/handle_mount_umount.sh 'unmount' $LOCAL_PWD $COMPONENT_TARGET $SOURCE_PWD --true
 	source $SCRIPTS_DIR/common/handle_mount_umount.sh 'mount' $LOCAL_PWD $COMPONENT_TARGET $SOURCE_PWD
 
+	echo "GAR-4"
 	sudo mkdir -p $ROOTFS_COMMON_MOUNT_DIR/scripts/rootfs
-	sudo cp -rpvf $BASE_PWD/rootfs/*.sh $ROOTFS_COMMON_MOUNT_DIR/scripts/rootfs/
+	sudo cp -rpvf $BASE_PWD/common/rootfs/*.sh $ROOTFS_COMMON_MOUNT_DIR/scripts/rootfs/
 
+	echo "GAR-5"
 	sudo chroot $ROOTFS_COMMON_MOUNT_DIR/ /bin/bash /scripts/rootfs/basic_setup.sh
 
 	sudo cp -rpvf $LOCAL_PWD/config/default-config/common/* $ROOTFS_COMMON_MOUNT_DIR/
@@ -92,20 +96,20 @@ generate_base_rootfs() {
 	echo "Installing needed system packages...."
 	sudo chroot $ROOTFS_COMMON_MOUNT_DIR/ /bin/bash -c "su - $LOCAL_USER -c /scripts/rootfs/common_system_packages.sh"
 
-	if [[ "$COMPONENT_TARGET" != "host" ]]; then
+	if [[ "$COMPONENT_TARGET" != "--host" ]]; then
 		echo "Installing needed applications...."
 		sudo chroot $ROOTFS_COMMON_MOUNT_DIR/ /bin/bash -c "su - $LOCAL_USER -c /scripts/rootfs/common_application_packages.sh"
 	else
 		sudo chroot $ROOTFS_COMMON_MOUNT_DIR/ /bin/bash /scripts/rootfs/host_only_packages.sh
 	fi
 
-	if [[ "$COMPONENT_TARGET" == "guest" ]]; then
+	if [[ "$COMPONENT_TARGET" == "--guest" ]]; then
 		sudo chroot $ROOTFS_COMMON_MOUNT_DIR/ /bin/bash -c "su - $LOCAL_USER -c /scripts/rootfs/guest_only_packages.sh"
 		sudo cp -rpvf $LOCAL_PWD/config/default-config/guest/* $ROOTFS_COMMON_MOUNT_DIR/
 		sudo cp $BASE_PWD/guest/serial-getty@.service $ROOTFS_COMMON_MOUNT_DIR/lib/systemd/system/
 	fi
 
-	if [[ "$COMPONENT_TARGET" == "game-fast" ]]; then
+	if [[ "$COMPONENT_TARGET" == "--container" ]]; then
 		sudo cp -rpvf $LOCAL_PWD/config/default-config/container/* $ROOTFS_COMMON_MOUNT_DIR/
 		sudo rm $ROOTFS_COMMON_MOUNT_DIR/etc/profile.d/system-compositor.sh
 
@@ -123,7 +127,7 @@ generate_base_rootfs() {
 ##main() 
 ###############################################################################
 
-if [[ "$COMPONENT_TARGET" == "game-fast" ]] || [[ "$COMPONENT_TARGET" == "host" ]]; then
+if [[ "$COMPONENT_TARGET" == "--container" ]] || [[ "$COMPONENT_TARGET" == "--host" ]]; then
 	cd $LOCAL_PWD/containers/
 else
 	cd $LOCAL_PWD/images/

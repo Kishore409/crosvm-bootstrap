@@ -11,7 +11,7 @@ set -o nounset
 set -o pipefail
 
 BUILD_TARGET=${1:-"--release"}
-BUILD_TYPE=${2:-"--incremental"}
+BUILD_TYPE=${2:-"--update"}
 BUILD_CHANNEL=${3:-"--stable"}
 LOCAL_BUILD_TARGET=release
 LOCAL_CHANNEL=stable
