@@ -16,7 +16,7 @@ COMPONENT_ONLY_BUILDS:
 --wayland: Build Wayland Libraries Only.
 --drivers: Build's drivers only.
 --vm: Build's VM and related dependencies.
---demos: Builds Demos Only.
+--compositor: Builds compositor Only.
 --kernel: Builds Kernel Only
 --all: Builds all components.
 
